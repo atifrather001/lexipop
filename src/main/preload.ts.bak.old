@@ -1,0 +1,115 @@
+/* LexiPop - preload script. Exposes a narrow IPC API to the renderer. */
+import { createRequire } from "node:module";
+import type { WordEntry } from "../shared/types";
+
+const require = createRequire(import.meta.url);
+const { contextBridge, ipcRenderer } = require("electron");
+
+export interface LookupResult {
+  entry: WordEntry | null;
+  error: string | null;
+  warnings: string[];
+}
+
+export interface HistoryItem {
+  id: number;
+  word: string;
+  lang: string;
+  lookedUpAt: number;
+}
+
+export interface FavoriteItem {
+  id: number;
+  word: string;
+  lang: string;
+  tags: string[];
+  addedAt: number;
+}
+
+const api = {
+  lookup: (word: string, lang: string): Promise<LookupResult> =>
+    ipcRenderer.invoke("dictionary:lookup", word, lang),
+  history: {
+    get: (limit?: number): Promise<HistoryItem[]> =>
+      ipcRenderer.invoke("history:get", limit ?? 100),
+    clear: (): Promise<void> => ipcRenderer.invoke("history:clear"),
+  },
+  favorites: {
+    get: (): Promise<FavoriteItem[]> =>
+      ipcRenderer.invoke("favorites:get"),
+    add: (word: string, lang: string, tags: string[]): Promise<void> =>
+      ipcRenderer.invoke("favorites:add", word, lang, tags),
+    remove: (word: string, lang: string): Promise<void> =>
+      ipcRenderer.invoke("favorites:remove", word, lang),
+    updateTags: (word: string, lang: string, tags: string[]): Promise<void> =>
+      ipcRenderer.invoke("favorites:updateTags", word, lang, tags),
+  },
+  app: {
+    getVersion: (): Promise<string> => ipcRenderer.invoke("app:getVersion"),
+    getPlatform: (): Promise<string> => ipcRenderer.invoke("app:getPlatform"),
+  },
+} as const;
+
+declare global {
+  interface Window {
+    lexipop: typeof api;
+  }
+}
+
+try {
+  contextBridge.exposeInMainWorld("lexipop", api);
+} catch (err) {
+  // contextBridge unavailable (e.g. contextIsolation disabled) — fall back
+  // to exposing ipcRenderer directly on window so the renderer can call it.
+  try {
+    (window as any).lexipop = {
+      lookup: async (word: string, lang: string) => {
+        return ipcRenderer.invoke("dictionary:lookup", word, lang);
+      },
+      history: {
+        get: (limit?: number) => ipcRenderer.invoke("history:get", limit ?? 100),
+        clear: () => ipcRenderer.invoke("history:clear"),
+      },
+      favorites: {
+        get: () => ipcRenderer.invoke("favorites:get"),
+        add: (word: string, lang: string, tags: string[]) =>
+          ipcRenderer.invoke("favorites:add", word, lang, tags),
+        remove: (word: string, lang: string) =>
+          ipcRenderer.invoke("favorites:remove", word, lang),
+        updateTags: (word: string, lang: string, tags: string[]) =>
+          ipcRenderer.invoke("favorites:updateTags", word, lang, tags),
+      },
+      app: {
+        getVersion: () => ipcRenderer.invoke("app:getVersion"),
+        getPlatform: () => ipcRenderer.invoke("app:getPlatform"),
+      },
+    };
+  } catch {
+    // last resort: silently fail; renderer will show its diagnostic error
+    const win = globalThis as any;
+    if (win.window) {
+      win.window.lexipop = {
+        lookup: async (word: string, lang: string) => {
+          return ipcRenderer.invoke("dictionary:lookup", word, lang);
+        },
+        history: {
+          get: (limit?: number) => ipcRenderer.invoke("history:get", limit ?? 100),
+          clear: () => ipcRenderer.invoke("history:clear"),
+        },
+        favorites: {
+          get: () => ipcRenderer.invoke("favorites:get"),
+          add: (word: string, lang: string, tags: string[]) =>
+            ipcRenderer.invoke("favorites:add", word, lang, tags),
+          remove: (word: string, lang: string) =>
+            ipcRenderer.invoke("favorites:remove", word, lang),
+          updateTags: (word: string, lang: string, tags: string[]) =>
+            ipcRenderer.invoke("favorites:updateTags", word, lang, tags),
+        },
+        app: {
+          getVersion: () => ipcRenderer.invoke("app:getVersion"),
+          getPlatform: () => ipcRenderer.invoke("app:getPlatform"),
+        },
+      };
+    }
+  }
+}
