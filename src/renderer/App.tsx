@@ -29,6 +29,13 @@ export default function App() {
       lookup(word, "en");
     });
     const offPin = api.popup.onPinned?.((p: boolean) => setPinned(p));
+    // Listeners are attached; now ask for any word that arrived before we mounted
+    api.popup.ready?.().then((word: string | null) => {
+      if (word) {
+        setQuery(word);
+        lookup(word, "en");
+      }
+    });
     return () => { offWord?.(); offPin?.(); };
   }, [lookup]);
 

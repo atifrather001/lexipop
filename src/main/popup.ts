@@ -15,10 +15,29 @@ export class PopupWindow {
   private win: BrowserWindow | null = null;
   private watcher: NodeJS.Timeout | null = null;
   private pinned = false;
+  private destroying = false;
   private lastInside: boolean | null = null;
   private idleTimer: NodeJS.Timeout | null = null;
+  /** True once the popup's renderer has mounted and asked for its word. */
+  private rendererReady = false;
+  /** Word waiting for a renderer that hasn't mounted yet. */
+  private pendingWord: string | null = null;
 
-  constructor(private readonly preload: string, private readonly baseUrl: string) {}
+  constructor(private readonly preload: string, private readonly baseUrl: string) {
+    ipcMain.handle("popup:setPinned", (_e, pinned: boolean) => {
+      this.pinned = !!pinned;
+      console.log("[popup] pinned =", this.pinned);
+      return this.pinned;
+    });
+    // Renderer handshake: the popup asks for its word once React has mounted
+    ipcMain.handle("popup:ready", () => {
+      this.rendererReady = true;
+      const w = this.pendingWord;
+      this.pendingWord = null;
+      console.log("[popup] renderer ready; pending word =", w);
+      return w;
+    });
+  }
 
   private create(): BrowserWindow {
     const win = new BrowserWindow({
@@ -47,16 +66,20 @@ export class PopupWindow {
       this.pinned = false;
       this.scheduleIdleDestroy();
     });
-    win.on("closed", () => { this.stopWatching(); this.win = null; });
-    // Pinning is explicit (the pin button in the banner); clicks never pin.
-    ipcMain.handle("popup:setPinned", (_e, pinned: boolean) => {
-      this.pinned = !!pinned;
-      console.log("[popup] pinned =", this.pinned);
-      return this.pinned;
+    win.on("closed", () => { this.stopWatching(); this.win = null; this.rendererReady = false; });
+    // Close (red X / window.close) just hides, so the window and its renderer are reused
+    win.on("close", (e) => {
+      if (!this.destroying) {
+        e.preventDefault();
+        win.hide();
+      }
     });
+    // A reload (e.g. dev HMR) needs a fresh handshake
+    win.webContents.on("did-start-loading", () => { this.rendererReady = false; });
     win.webContents.on("before-input-event", (_e, input) => {
       if (input.type === "keyDown" && input.key === "Escape") win.hide();
     });
+    this.rendererReady = false;
     win.loadURL(`${this.baseUrl}#popup`);
     this.win = win;
     return win;
@@ -72,11 +95,11 @@ export class PopupWindow {
     const y = Math.min(Math.max(cursor.y + 16, workArea.y), workArea.y + workArea.height - h);
     win.setPosition(Math.round(x), Math.round(y));
 
-    const send = () => win.webContents.send("popup:word", word);
-    if (win.webContents.isLoading()) {
-      win.webContents.once("did-finish-load", send);
+    if (this.rendererReady) {
+      win.webContents.send("popup:word", word);
     } else {
-      send();
+      // Fresh window: the renderer will pick this up via "popup:ready" once mounted
+      this.pendingWord = word;
     }
     this.pinned = false;
     this.lastInside = null;
@@ -145,8 +168,10 @@ export class PopupWindow {
   destroy(): void {
     this.cancelIdleDestroy();
     this.stopWatching();
-    try { ipcMain.removeHandler("popup:setPinned"); } catch { /* ignore */ }
+    this.destroying = true;
     this.win?.destroy();
+    this.destroying = false;
     this.win = null;
+    this.rendererReady = false;
   }
 }

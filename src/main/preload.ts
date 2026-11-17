@@ -55,6 +55,8 @@ const api = {
       ipcRenderer.on("popup:word", handler);
       return () => ipcRenderer.removeListener("popup:word", handler);
     },
+    /** Handshake: tell main the popup UI is mounted; returns the word to show (or null). */
+    ready: (): Promise<string | null> => ipcRenderer.invoke("popup:ready"),
     /** Keep the popup open even when the mouse leaves. */
     setPinned: (pinned: boolean): Promise<boolean> => ipcRenderer.invoke("popup:setPinned", pinned),
     /** Main process resets the pin on every show. */
