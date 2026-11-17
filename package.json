@@ -1,9 +1,9 @@
 {
   "name": "lexipop",
   "productName": "LexiPop",
-  "version": "1.0.1",
-  "description": "Babylon-style dictionary/translation app for Windows 11",
-  "author": "",
+  "version": "1.0.2",
+  "description": "LexiPop by NexaSecure AI",
+  "author": "NexaSecure AI",
   "license": "MIT",
   "type": "module",
   "main": "dist/electron/main/index.js",
@@ -40,7 +40,7 @@
   "build": {
     "appId": "com.lexipop.app",
     "productName": "LexiPop",
-    "copyright": "Copyright © 2026",
+    "copyright": "Copyright © 2026 NexaSecure AI",
     "directories": {
       "output": "release"
     },
