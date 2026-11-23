@@ -15,7 +15,7 @@ export function Banner({ compact = false, onClose, pinned = false, onTogglePin }
       <div className="lx-grid" />
       <div className="lx-banner-inner">
         <div className="lx-orb">
-          <span>L</span>
+          <img src="./lexipop-icon.svg" alt="" style={{ width: "100%", height: "100%", display: "block" }} />
         </div>
         <div className="lx-text">
           <div className="lx-wordmark">LexiPop</div>

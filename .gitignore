@@ -3,3 +3,6 @@ dist/
 release/
 .backup-dark/
 *.log
+
+build-assets/
+build/icon-old.*
