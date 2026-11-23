@@ -1,5 +1,5 @@
 /* LexiPop - Wiktionary provider: etymology + human-recorded pronunciations */
-import type { DictionaryProvider, Phonetic, WordEntry } from "../shared/types";
+import type { Definition, DictionaryProvider, Phonetic, WordEntry } from "../shared/types";
 
 const API = "https://en.wiktionary.org/w/api.php";
 // Wikimedia requires a descriptive User-Agent; anonymous UAs get 403.
@@ -155,6 +155,74 @@ function translationsFrom(section: string): Record<string, string[]> {
   return out;
 }
 
+/** Part-of-speech headings whose numbered list holds the definitions. */
+const POS_IDS = [
+  "Noun", "Proper_noun", "Verb", "Adjective", "Adverb", "Pronoun", "Preposition", "Postposition",
+  "Conjunction", "Interjection", "Determiner", "Article", "Numeral", "Particle", "Phrase",
+  "Prepositional_phrase", "Proverb", "Idiom", "Contraction", "Abbreviation", "Initialism",
+  "Acronym", "Prefix", "Suffix", "Symbol", "Letter",
+];
+const MAX_PER_POS = 8;
+const MAX_DEFS = 24;
+
+/** Contents of the top-level <li> items of the <ol> that `html` starts with (nested lists kept inside). */
+export function topLevelItems(html: string): string[] {
+  const items: string[] = [];
+  const tagRe = /<\/?(ol|ul|li)\b[^>]*>/gi;
+  let depth = 0; // list depth
+  let liStart = -1;
+  let m: RegExpExecArray | null;
+  while ((m = tagRe.exec(html))) {
+    const closing = m[0][1] === "/";
+    const tag = m[1]!.toLowerCase();
+    if (tag === "ol" || tag === "ul") {
+      depth += closing ? -1 : 1;
+      if (depth === 0) break; // end of the outer list
+    } else if (depth === 1) {
+      if (!closing) liStart = m.index + m[0].length;
+      else if (liStart >= 0) {
+        items.push(html.slice(liStart, m.index));
+        liStart = -1;
+      }
+    }
+  }
+  return items;
+}
+
+/** Definitions under each part-of-speech heading (includes "Proper noun": places, people, organisations). */
+export function definitionsFrom(section: string): Definition[] {
+  const out: Definition[] = [];
+  const headRe = new RegExp(`<h[3-6][^>]*id="(${POS_IDS.join("|")})(?:_\\d+)?"[^>]*>`, "gi");
+  let hm: RegExpExecArray | null;
+  while ((hm = headRe.exec(section)) && out.length < MAX_DEFS) {
+    const pos = hm[1]!.replace(/_/g, " ").toLowerCase();
+    let body = section.slice(hm.index + hm[0].length);
+    const next = /<h[2-6][\s>]/i.exec(body);
+    if (next) body = body.slice(0, next.index);
+    const olAt = body.search(/<ol[\s>]/i);
+    if (olAt < 0) continue;
+    for (const li of topLevelItems(body.slice(olAt)).slice(0, MAX_PER_POS)) {
+      // usage example: a <dd> holding an "e-example" span
+      let example: string | undefined;
+      const ddRe = /<dd>([\s\S]*?)<\/dd>/gi;
+      let dm: RegExpExecArray | null;
+      while ((dm = ddRe.exec(li))) {
+        if (/e-example/.test(dm[1] ?? "")) {
+          example = stripHtml(dm[1] ?? "").replace(/\s+/g, " ").trim() || undefined;
+          break;
+        }
+      }
+      // the definition is the text before any nested list (sub-senses, quotations, examples)
+      const head = li.replace(/<(?:ol|ul|dl)[\s>][\s\S]*$/i, "");
+      const definition = stripHtml(head).replace(/\s+/g, " ").trim();
+      if (!definition) continue;
+      out.push({ definition, example, synonyms: [], antonyms: [], partOfSpeech: pos, source: "Wiktionary" });
+      if (out.length >= MAX_DEFS) break;
+    }
+  }
+  return out;
+}
+
 /** For inflected forms ("simple past of launch"), the lemma the page points to. */
 function lemmaFrom(section: string): string | undefined {
   const m = /class="form-of-definition-link"[\s\S]*?<a[^>]*href="\/wiki\/([^"#]+)#English"/i.exec(section);
@@ -198,9 +266,15 @@ export class WiktionaryProvider implements DictionaryProvider {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
     try {
-      const section = await this.fetchSection(word, heading, controller.signal);
+      let section = await this.fetchSection(word, heading, controller.signal);
+      // Wiktionary titles are case-sensitive: "ramallah" -> "Ramallah", "new york" -> "New York"
+      if (!section && /\p{Ll}/u.test(word)) {
+        const titled = word.toLowerCase().replace(/(^|[\s-])(\p{L})/gu, (_m, sep: string, c: string) => sep + c.toUpperCase());
+        if (titled !== word) section = await this.fetchSection(titled, heading, controller.signal).catch(() => null);
+      }
       if (!section) return {};
 
+      const definitions = definitionsFrom(section);
       let etymology = etymologyFrom(section);
       let phonetics = pronunciationsFrom(section);
       let translations = lang === "en" ? translationsFrom(section) : {};
@@ -219,8 +293,8 @@ export class WiktionaryProvider implements DictionaryProvider {
         }
       }
 
-      if (!etymology && phonetics.length === 0 && Object.keys(translations).length === 0) return {};
-      return { etymology, phonetics, translations, sources: ["Wiktionary"] };
+      if (!definitions.length && !etymology && phonetics.length === 0 && Object.keys(translations).length === 0) return {};
+      return { definitions, etymology, phonetics, translations, sources: ["Wiktionary"] };
     } finally {
       clearTimeout(timeout);
     }

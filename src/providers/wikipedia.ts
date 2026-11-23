@@ -68,6 +68,19 @@ async function fetchWikiPage(term: string, wikiLang: string): Promise<WikiPage |
   return page;
 }
 
+/** Coordinates from Wikidata (P625) for articles whose Wikipedia page doesn't expose any. */
+async function fetchWikidataCoords(qid: string): Promise<{ lat: number; lon: number } | undefined> {
+  if (!/^Q\d+$/.test(qid)) return undefined;
+  const params = new URLSearchParams({ action: "wbgetclaims", entity: qid, property: "P625", format: "json" });
+  const data = (await getJson(`https://www.wikidata.org/w/api.php?${params}`)) as {
+    claims?: { P625?: Array<{ mainsnak?: { datavalue?: { value?: { latitude?: number; longitude?: number } } } }> };
+  } | null;
+  const v = data?.claims?.P625?.[0]?.mainsnak?.datavalue?.value;
+  return typeof v?.latitude === "number" && typeof v?.longitude === "number"
+    ? { lat: v.latitude, lon: v.longitude }
+    : undefined;
+}
+
 type Binding = Record<string, { value: string } | undefined>;
 
 /** Fold the SPARQL rows (one per combination of multi-valued props) into one fact sheet. */
@@ -140,7 +153,8 @@ export async function lookupEncyclopedia(term: string, lang: string): Promise<En
     const qid = page.pageprops?.wikibase_item;
     const country = qid ? await fetchCountryFacts(qid, wikiLang) : null;
     const incomplete = country === undefined;
-    const coord = page.coordinates?.[0];
+    const wp = page.coordinates?.[0];
+    const coord = wp ? { lat: wp.lat, lon: wp.lon } : qid ? await fetchWikidataCoords(qid) : undefined;
     return {
       term: t,
       wikiLang,

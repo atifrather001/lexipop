@@ -175,6 +175,8 @@ app.on("before-quit", () => {
 });
 
 /* ---- IPC: dictionary lookup ---- */
+/** Bump to make every cached dictionary entry refetch once after a provider change. */
+const DICT_CACHE_VERSION = 2;
 ipcMain.handle(
   "dictionary:lookup",
   async (_event, word: string, lang: string, force = false): Promise<LookupResult> => {
@@ -188,7 +190,9 @@ ipcMain.handle(
     const cached = force ? null : db.getCache(trimmed, lang);
     if (cached) {
       try {
-        const entry: WordEntry = JSON.parse(cached.data);
+        const entry = JSON.parse(cached.data) as WordEntry & { cacheVersion?: number };
+        // saved by an older version (e.g. before Wiktionary definitions): fetch fresh
+        if (entry.cacheVersion !== DICT_CACHE_VERSION) throw new Error("stale cache");
         try {
           db.addHistory(trimmed, lang);
         } catch {
@@ -219,7 +223,7 @@ ipcMain.handle(
     // 3) Persist successful lookups to cache + history
     if (result.entry) {
       try {
-        db.setCache(trimmed, lang, result.entry);
+        db.setCache(trimmed, lang, { ...result.entry, cacheVersion: DICT_CACHE_VERSION } as WordEntry);
         db.addHistory(trimmed, lang);
       } catch {
         // cache write failure is non-fatal
@@ -235,7 +239,7 @@ const ENC_TTL_HIT = 30 * 24 * 60 * 60 * 1000; // articles: 30 days
 const ENC_TTL_MISS = 7 * 24 * 60 * 60 * 1000; // "no article": retry after 7 days
 const ENC_TTL_INCOMPLETE = 10 * 60 * 1000; // Wikidata facts failed: retry after 10 minutes
 /** Bump to make every cached encyclopedia entry refetch once (e.g. after 1.0.5 cached some without facts). */
-const ENC_CACHE_VERSION = 2;
+const ENC_CACHE_VERSION = 3;
 
 ipcMain.handle(
   "encyclopedia:lookup",

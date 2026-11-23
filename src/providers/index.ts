@@ -110,6 +110,13 @@ export async function lookupWord(
     }
   }
 
+  // English: Free Dictionary already covers common words, so Wiktionary's definitions are only
+  // kept when nothing else had any (names of places, people, organisations...). Urdu/Arabic/Persian
+  // rely on Wiktionary alone.
+  if (lang === "en" && merged.definitions!.some((d) => d.source !== "Wiktionary")) {
+    merged.definitions = merged.definitions!.filter((d) => d.source !== "Wiktionary");
+  }
+
   // de-duplicate arrays
   merged.synonyms = [...new Set(merged.synonyms)];
   merged.antonyms = [...new Set(merged.antonyms)];
