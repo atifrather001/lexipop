@@ -73,7 +73,8 @@ describe("lookupWord merge logic", () => {
   });
 
   it("returns error when no provider supports the language", async () => {
-    const res = await lookupWord("مرحبا", "ur");
+    // Wiktionary now covers ur/ar/fa, so use a code no provider supports
+    const res = await lookupWord("hola", "xx");
     expect(res.entry).toBeNull();
     expect(res.error).toContain("No provider supports");
   });

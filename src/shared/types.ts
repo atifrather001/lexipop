@@ -70,3 +70,48 @@ export interface ProviderSource {
   name: string;
   sections: string[];
 }
+
+/* ---- Encyclopedia (Wikipedia + Wikidata) ---- */
+
+export interface CountryFacts {
+  iso2?: string;
+  capital: string[];
+  continent: string[];
+  population?: number;
+  areaKm2?: number;
+  currencies: string[];
+  languages: string[];
+  flagUrl?: string;
+}
+
+export interface EncyclopediaEntry {
+  /** The term the user looked up. */
+  term: string;
+  /** Wikipedia language edition actually used (may be "en" as a fallback). */
+  wikiLang: string;
+  title: string;
+  description?: string;
+  extract: string;
+  thumbnail?: string;
+  coordinates?: { lat: number; lon: number };
+  pageUrl: string;
+  wikidataId?: string;
+  country?: CountryFacts;
+  fetchedAt: number;
+  fromCache: boolean;
+}
+
+export interface EncyclopediaResult {
+  entry: EncyclopediaEntry | null;
+  error: string | null;
+}
+
+/* ---- Sentence / paragraph translation ---- */
+
+export interface TextTranslationResult {
+  text: string;
+  from: string;
+  translations: Array<{ lang: string; text: string }>;
+  truncated: boolean;
+  error: string | null;
+}

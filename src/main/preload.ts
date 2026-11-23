@@ -2,6 +2,9 @@
 // Inline import type keeps this file a plain script (no ESM import/export),
 // which is required for Electron's sandboxed preload.
 type WordEntry = import("../shared/types").WordEntry;
+type EncyclopediaResult = import("../shared/types").EncyclopediaResult;
+type TextTranslationResult = import("../shared/types").TextTranslationResult;
+type ConversionResult = import("../shared/convert").ConversionResult;
 
 const { contextBridge, ipcRenderer } = require("electron");
 
@@ -29,6 +32,19 @@ interface FavoriteItem {
 const api = {
   lookup: (word: string, lang: string, force = false): Promise<LookupResult> =>
     ipcRenderer.invoke("dictionary:lookup", word, lang, force),
+  encyclopedia: {
+    lookup: (term: string, lang: string, force = false): Promise<EncyclopediaResult> =>
+      ipcRenderer.invoke("encyclopedia:lookup", term, lang, force),
+  },
+  convert: {
+    /** Currency / unit / temperature / time-zone conversion; null when the text isn't a quantity. */
+    run: (text: string): Promise<ConversionResult | null> => ipcRenderer.invoke("convert:run", text),
+  },
+  translate: {
+    /** Full-text translation (English -> Urdu + Arabic, or Urdu/Arabic/Persian -> English). */
+    text: (text: string, from: string): Promise<TextTranslationResult> =>
+      ipcRenderer.invoke("translate:text", text, from),
+  },
   history: {
     get: (limit?: number): Promise<HistoryItem[]> =>
       ipcRenderer.invoke("history:get", limit ?? 100),
@@ -47,6 +63,8 @@ const api = {
   app: {
     getVersion: (): Promise<string> => ipcRenderer.invoke("app:getVersion"),
     getPlatform: (): Promise<string> => ipcRenderer.invoke("app:getPlatform"),
+    /** Opens Wikipedia / Wikidata / OpenStreetMap links in the default browser. */
+    openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke("app:openExternal", url),
   },
   popup: {
     /** Fired when the main process wants the popup to look up a word. */

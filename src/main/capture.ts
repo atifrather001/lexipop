@@ -5,6 +5,17 @@ import type { InputHelper } from "./inputHelper.js";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const SENTINEL = "\u0000lexipop\u0000";
 
+const MAX_SELECTION = 2000;
+
+/** A real selection: keep it whole (sentence translation and converters need it). */
+function cleanSelection(text: string): string {
+  const t = text.replace(/\r\n?/g, "\n").replace(/[ \t]+/g, " ").trim();
+  if (!t) return "";
+  // a single token: strip surrounding punctuation as before, but keep currency symbols / units
+  if (!/\s/.test(t)) return /\d/.test(t) ? t.replace(/[,;:!?.)\]]+$/, "") : firstWord(t);
+  return t.slice(0, MAX_SELECTION);
+}
+
 function firstWord(text: string): string {
   const cleaned = text.replace(/[\r\n\t]+/g, " ").trim();
   if (!cleaned) return "";
@@ -15,7 +26,8 @@ function firstWord(text: string): string {
 }
 
 /**
- * Returns the selected text, or the word under the cursor (via double-click), or "".
+ * Returns the whole selection (sentences, "$100", "5 miles"), or the word under the cursor
+ * (via double-click), or "".
  * Restores the user's clipboard afterwards.
  */
 export async function captureWord(input: InputHelper): Promise<string> {
@@ -29,16 +41,16 @@ export async function captureWord(input: InputHelper): Promise<string> {
     await input.run("copy");
     await sleep(120);
     let text = clipboard.readText();
-    if (text === SENTINEL || !text.trim()) {
-      // nothing selected: select the word under the cursor, then copy
-      await input.run("dblclick");
-      await sleep(80);
-      clipboard.writeText(SENTINEL);
-      await input.run("copy");
-      await sleep(120);
-      text = clipboard.readText();
-      if (text === SENTINEL) text = "";
-    }
+    if (text !== SENTINEL && text.trim()) return cleanSelection(text);
+
+    // nothing selected: select the word under the cursor, then copy
+    await input.run("dblclick");
+    await sleep(80);
+    clipboard.writeText(SENTINEL);
+    await input.run("copy");
+    await sleep(120);
+    text = clipboard.readText();
+    if (text === SENTINEL) text = "";
     return firstWord(text);
   } finally {
     clipboard.writeText(saved);

@@ -4,10 +4,15 @@ const API = "https://api.mymemory.translated.net/get";
 
 /** Translate one English word/phrase into the target language. Returns null on failure. */
 export async function myMemoryTranslate(text: string, target: string): Promise<string | null> {
+  return myMemoryTranslatePair(text, "en", target);
+}
+
+/** Translate text (max 500 bytes per request) between any two languages. Returns null on failure. */
+export async function myMemoryTranslatePair(text: string, source: string, target: string): Promise<string | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10000);
   try {
-    const params = new URLSearchParams({ q: text, langpair: `en|${target}` });
+    const params = new URLSearchParams({ q: text, langpair: `${source}|${target}` });
     const res = await fetch(`${API}?${params}`, {
       signal: controller.signal,
       headers: { Accept: "application/json" },

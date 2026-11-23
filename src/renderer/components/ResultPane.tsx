@@ -4,12 +4,17 @@ import { DefinitionList } from "./DefinitionList";
 import { SynonymAntonymList } from "./SynonymAntonymList";
 import { TranslationList } from "./TranslationList";
 import { Section } from "./Section";
+import { EncyclopediaSection } from "./EncyclopediaSection";
 import type { WordEntry, Definition } from "../shared/types";
 
 interface ResultPaneProps {
   entry: WordEntry | null;
   warnings: string[];
   onRefresh?: () => void;
+  /** Refetch the encyclopedia section instead of using its cache. */
+  forceEncyclopedia?: boolean;
+  isFavorite?: boolean;
+  onToggleFavorite?: () => void;
 }
 
 function groupBySource(defs: Definition[]): Array<[string, Definition[]]> {
@@ -22,7 +27,14 @@ function groupBySource(defs: Definition[]): Array<[string, Definition[]]> {
   return [...map.entries()];
 }
 
-export function ResultPane({ entry, warnings, onRefresh }: ResultPaneProps) {
+export function ResultPane({
+  entry,
+  warnings,
+  onRefresh,
+  forceEncyclopedia = false,
+  isFavorite = false,
+  onToggleFavorite,
+}: ResultPaneProps) {
   if (!entry) return null;
   const groups = groupBySource(entry.definitions);
   const hasTranslations = Object.values(entry.translations).some((t: string[]) => t.length > 0);
@@ -43,6 +55,17 @@ export function ResultPane({ entry, warnings, onRefresh }: ResultPaneProps) {
         <div className="bx-section-body">
           <div className="flex items-baseline gap-3 flex-wrap">
             <h1 className="text-[24px] font-bold text-slate-900 leading-tight">{entry.word}</h1>
+            {onToggleFavorite && (
+              <button
+                type="button"
+                onClick={onToggleFavorite}
+                className={`text-[20px] leading-none ${isFavorite ? "text-amber-500" : "text-slate-300 hover:text-amber-500"}`}
+                title={isFavorite ? "Remove from favorites" : "Add to favorites"}
+                aria-pressed={isFavorite}
+              >
+                {isFavorite ? "★" : "☆"}
+              </button>
+            )}
             <span className="text-[11px] uppercase tracking-wide text-slate-500">{entry.language}</span>
             {onRefresh && (
               <button
@@ -66,6 +89,13 @@ export function ResultPane({ entry, warnings, onRefresh }: ResultPaneProps) {
           <TranslationList translations={entry.translations} />
         </Section>
       )}
+
+      <EncyclopediaSection
+        term={entry.word}
+        lang={entry.language}
+        force={forceEncyclopedia}
+        open={groups.length === 0 ? true : undefined}
+      />
 
       {groups.map(([source, defs]) => (
         <Section key={source} title={source} subtitle="definitions" count={defs.length}>
