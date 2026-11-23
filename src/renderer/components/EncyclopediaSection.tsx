@@ -58,6 +58,8 @@ function FactRow({ label, values }: { label: string; values: Array<string | unde
 export function EncyclopediaSection({ term, lang, force = false, open }: EncyclopediaSectionProps) {
   const [entry, setEntry] = useState<EncyclopediaEntry | null>(null);
   const [expanded, setExpanded] = useState(!IS_POPUP);
+  // the popup is small: its map loads only when asked for
+  const [showMap, setShowMap] = useState(!IS_POPUP);
 
   useEffect(() => {
     let cancelled = false;
@@ -128,21 +130,26 @@ export function EncyclopediaSection({ term, lang, force = false, open }: Encyclo
         </table>
       )}
 
-      {coords && !IS_POPUP && (
+      {coords && showMap && (
         <iframe
           title={`Map of ${entry.title}`}
           src={mapEmbedUrl(coords.lat, coords.lon, c?.areaKm2)}
-          className="mt-3 w-full h-[240px] rounded border border-slate-200"
+          className={`mt-3 w-full rounded border border-slate-200 ${IS_POPUP ? "h-[180px]" : "h-[240px]"}`}
           loading="lazy"
         />
       )}
 
       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500">
         <ExtLink href={entry.pageUrl}>Read full article ↗</ExtLink>
+        {coords && IS_POPUP && (
+          <button type="button" className="text-green-800 hover:underline" onClick={() => setShowMap((m) => !m)}>
+            {showMap ? "Hide map" : "Show map"}
+          </button>
+        )}
         {coords && <ExtLink href={osmLink(coords.lat, coords.lon, c ? 5 : 11)}>Open map ↗</ExtLink>}
         <span className="ml-auto">
           Source: Wikipedia (CC BY-SA){c ? " · Wikidata" : ""}
-          {coords && !IS_POPUP ? " · © OpenStreetMap contributors" : ""}
+          {coords && showMap ? " · © OpenStreetMap contributors" : ""}
           {entry.fromCache ? " · cached" : ""}
         </span>
       </div>
