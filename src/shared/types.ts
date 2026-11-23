@@ -97,6 +97,8 @@ export interface EncyclopediaEntry {
   pageUrl: string;
   wikidataId?: string;
   country?: CountryFacts;
+  /** The Wikidata facts call failed (timeout / network): don't cache this result for long. */
+  incomplete?: boolean;
   fetchedAt: number;
   fromCache: boolean;
 }

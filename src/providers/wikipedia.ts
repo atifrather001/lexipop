@@ -92,8 +92,11 @@ export function parseCountryBindings(rows: Binding[]): CountryFacts | null {
   };
 }
 
-/** Country facts from Wikidata. Returns null for anything that has no ISO 3166-1 code. */
-async function fetchCountryFacts(qid: string, labelLang: string): Promise<CountryFacts | null> {
+/**
+ * Country facts from Wikidata.
+ * Returns null for anything that has no ISO 3166-1 code, undefined when the query itself failed.
+ */
+async function fetchCountryFacts(qid: string, labelLang: string): Promise<CountryFacts | null | undefined> {
   if (!/^Q\d+$/.test(qid)) return null;
   const query = `
     SELECT ?iso ?capitalLabel ?continentLabel ?population ?area ?currencyLabel ?languageLabel ?flag WHERE {
@@ -107,11 +110,13 @@ async function fetchCountryFacts(qid: string, labelLang: string): Promise<Countr
       OPTIONAL { wd:${qid} wdt:P41 ?flag . }
       SERVICE wikibase:label { bd:serviceParam wikibase:language "${labelLang},en". }
     } LIMIT 200`;
-  const data = (await getJson(
-    `https://query.wikidata.org/sparql?format=json&query=${encodeURIComponent(query)}`,
-    12000
-  )) as { results?: { bindings?: Binding[] } } | null;
-  return parseCountryBindings(data?.results?.bindings ?? []);
+  const url = `https://query.wikidata.org/sparql?format=json&query=${encodeURIComponent(query)}`;
+  type Sparql = { results?: { bindings?: Binding[] } } | null;
+  // the query service is sometimes slow or rate-limits: retry once
+  let data = (await getJson(url, 15000)) as Sparql;
+  if (!data?.results) data = (await getJson(url, 15000)) as Sparql;
+  if (!data?.results) return undefined;
+  return parseCountryBindings(data.results.bindings ?? []);
 }
 
 /**
@@ -134,6 +139,7 @@ export async function lookupEncyclopedia(term: string, lang: string): Promise<En
 
     const qid = page.pageprops?.wikibase_item;
     const country = qid ? await fetchCountryFacts(qid, wikiLang) : null;
+    const incomplete = country === undefined;
     const coord = page.coordinates?.[0];
     return {
       term: t,
@@ -147,6 +153,7 @@ export async function lookupEncyclopedia(term: string, lang: string): Promise<En
         page.fullurl ?? `https://${wikiLang}.wikipedia.org/wiki/${encodeURIComponent(page.title.replace(/ /g, "_"))}`,
       wikidataId: qid,
       country: country ?? undefined,
+      incomplete: incomplete || undefined,
       fetchedAt: Date.now(),
       fromCache: false,
     };

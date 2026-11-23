@@ -233,6 +233,9 @@ ipcMain.handle(
 /* ---- IPC: encyclopedia (Wikipedia + Wikidata) ---- */
 const ENC_TTL_HIT = 30 * 24 * 60 * 60 * 1000; // articles: 30 days
 const ENC_TTL_MISS = 7 * 24 * 60 * 60 * 1000; // "no article": retry after 7 days
+const ENC_TTL_INCOMPLETE = 10 * 60 * 1000; // Wikidata facts failed: retry after 10 minutes
+/** Bump to make every cached encyclopedia entry refetch once (e.g. after 1.0.5 cached some without facts). */
+const ENC_CACHE_VERSION = 2;
 
 ipcMain.handle(
   "encyclopedia:lookup",
@@ -244,9 +247,10 @@ ipcMain.handle(
       const cached = db.getEncyclopedia(t, lang);
       if (cached) {
         try {
-          const data = JSON.parse(cached.data) as EncyclopediaEntry | null;
-          const ttl = data ? ENC_TTL_HIT : ENC_TTL_MISS;
-          if (Date.now() - cached.createdAt < ttl) {
+          const data = JSON.parse(cached.data) as (EncyclopediaEntry & { cacheVersion?: number }) | null;
+          const ttl = !data ? ENC_TTL_MISS : data.incomplete ? ENC_TTL_INCOMPLETE : ENC_TTL_HIT;
+          const current = !data || data.cacheVersion === ENC_CACHE_VERSION;
+          if (current && Date.now() - cached.createdAt < ttl) {
             return { entry: data ? { ...data, fromCache: true } : null, error: null };
           }
         } catch {
@@ -258,7 +262,7 @@ ipcMain.handle(
     try {
       const entry = await lookupEncyclopedia(t, lang);
       try {
-        db.setEncyclopedia(t, lang, entry);
+        db.setEncyclopedia(t, lang, entry ? ({ ...entry, cacheVersion: ENC_CACHE_VERSION } as EncyclopediaEntry) : null);
       } catch {
         // cache write failure is non-fatal
       }
