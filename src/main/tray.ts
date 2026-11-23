@@ -5,6 +5,7 @@ import fs from "node:fs";
 
 export interface TrayActions {
   openMain: () => void;
+  showAbout: () => void;
   quit: () => void;
 }
 
@@ -40,6 +41,7 @@ export function createTray(dirname: string, actions: TrayActions): Tray {
           },
         },
         { type: "separator" },
+        { label: "About LexiPop", click: actions.showAbout },
         { label: "Quit", click: actions.quit },
       ])
     );

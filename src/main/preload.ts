@@ -63,6 +63,12 @@ const api = {
   app: {
     getVersion: (): Promise<string> => ipcRenderer.invoke("app:getVersion"),
     getPlatform: (): Promise<string> => ipcRenderer.invoke("app:getPlatform"),
+    /** Fired when "About LexiPop" is chosen from the tray or the Help menu. */
+    onAbout: (cb: () => void): (() => void) => {
+      const handler = () => cb();
+      ipcRenderer.on("app:about", handler);
+      return () => ipcRenderer.removeListener("app:about", handler);
+    },
     /** Opens Wikipedia / Wikidata / OpenStreetMap links in the default browser. */
     openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke("app:openExternal", url),
   },

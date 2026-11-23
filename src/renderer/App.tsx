@@ -6,6 +6,7 @@ import { ResultPane } from "./components/ResultPane";
 import { ConversionPane } from "./components/ConversionPane";
 import { TextTranslationPane } from "./components/TextTranslationPane";
 import { HistoryPanel } from "./components/HistoryPanel";
+import { AboutDialog } from "./components/AboutDialog";
 import { useLookup } from "./hooks/useLookup";
 import { parseQuantity, type ConversionResult } from "../shared/convert";
 import { hasArabicScript, isRunningText } from "../shared/textkind";
@@ -65,6 +66,14 @@ export default function App() {
   const [showSide, setShowSide] = useState(() => !IS_POPUP && loadBool("lexipop.sidebar", true));
   const [sideKey, setSideKey] = useState(0);
   const [favKeys, setFavKeys] = useState<Set<string>>(new Set());
+  const [showAbout, setShowAbout] = useState(false);
+  const closeAbout = useCallback(() => setShowAbout(false), []);
+
+  // "About LexiPop" from the tray menu or Help menu
+  useEffect(() => {
+    if (IS_POPUP) return;
+    return api()?.app?.onAbout?.(() => setShowAbout(true));
+  }, []);
 
   const refreshFavs = useCallback(() => {
     api()
@@ -324,6 +333,17 @@ export default function App() {
             &#10005;
           </button>
         )}
+        {!IS_POPUP && (
+          <button
+            type="button"
+            className="bx-icon-btn text-white hover:bg-white/20 font-semibold"
+            onClick={() => setShowAbout(true)}
+            title="About LexiPop"
+            aria-label="About LexiPop"
+          >
+            &#9432;
+          </button>
+        )}
       </header>
 
       {/* Body */}
@@ -387,6 +407,8 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {showAbout && <AboutDialog onClose={closeAbout} />}
 
       {/* Status bar */}
       <footer className="bx-statusbar">

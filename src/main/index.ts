@@ -1,5 +1,5 @@
 /* LexiPop - Electron main process */
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { LexiPopDB } from "./db.js";
@@ -66,6 +66,27 @@ function showMain(): void {
   mainWindow?.show();
   mainWindow?.focus();
 }
+/** Open the main window and show the About dialog (waits for the page if the window is new). */
+function showAbout(): void {
+  showMain();
+  const wc = mainWindow?.webContents;
+  if (!wc) return;
+  if (wc.isLoading()) wc.once("did-finish-load", () => wc.send("app:about"));
+  else wc.send("app:about");
+}
+
+function buildAppMenu(): void {
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate([
+      { role: "fileMenu" },
+      { role: "editMenu" },
+      { role: "viewMenu" },
+      { role: "windowMenu" },
+      { label: "Help", submenu: [{ label: "About LexiPop", click: showAbout }] },
+    ])
+  );
+}
+
 const dbReady = db.init().catch((err) => {
   console.error("[LexiPop] DB init failed (continuing without cache):", err);
 });
@@ -145,10 +166,12 @@ app.whenReady().then(async () => {
     return;
   }
   await dbReady;
+  buildAppMenu();
   createWindow();
 
   createTray(__dirname, {
     openMain: showMain,
+    showAbout,
     quit: () => { quitting = true; app.quit(); },
   });
   registerHotkeys(() => void triggerPopup("hotkey"));
