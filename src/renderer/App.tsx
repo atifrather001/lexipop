@@ -9,10 +9,11 @@ import { HistoryPanel } from "./components/HistoryPanel";
 import { AboutDialog } from "./components/AboutDialog";
 import { useLookup } from "./hooks/useLookup";
 import { parseQuantity, type ConversionResult } from "../shared/convert";
-import { hasArabicScript, isRunningText } from "../shared/textkind";
+import { hasArabicScript, isRunningText, resolveLang } from "../shared/textkind";
 import type { FavoriteItem, TextTranslationResult } from "./shared/types";
 
 const LANGS = [
+  { code: "auto", label: "Auto" },
   { code: "en", label: "English" },
   { code: "ur", label: "Urdu" },
   { code: "ar", label: "Arabic" },
@@ -47,7 +48,7 @@ function saveBool(key: string, v: boolean): void {
 
 export default function App() {
   const [query, setQuery] = useState("");
-  const [lang, setLang] = useState("en");
+  const [lang, setLang] = useState("auto");
   const { result, loading, lookup, clear, entry } = useLookup();
   const [pinned, setPinned] = useState(false);
   // true only for a lookup started by the refresh button
@@ -133,7 +134,7 @@ export default function App() {
         setConv(null);
         setTextRes(null);
         setBusy(true);
-        const from = hasArabicScript(text) ? (l === "en" ? "ur" : l) : "en";
+        const from = hasArabicScript(text) ? resolveLang(text, l) : "en";
         let r: TextTranslationResult;
         try {
           r = await api()?.translate?.text?.(text, from);
@@ -151,8 +152,8 @@ export default function App() {
       setConv(null);
       setTextRes(null);
       setBusy(false);
-      // an Urdu/Arabic-script word looked up "as English" (e.g. from the popup) -> Urdu Wiktionary
-      await lookup(text, hasArabicScript(text) && l === "en" ? "ur" : l, !!opts.force);
+      // "Auto" (and the popup): Latin -> English, Urdu-only letters -> Urdu, other Arabic script -> Arabic
+      await lookup(text, resolveLang(text, l), !!opts.force);
       if (id === reqId.current) setSideKey((k) => k + 1);
     },
     [lookup, clear]
@@ -163,11 +164,11 @@ export default function App() {
     if (!IS_POPUP) return;
     const a = api();
     if (!a?.popup?.onWord) return;
-    const offWord = a.popup.onWord((word: string) => void runQuery(word, "en"));
+    const offWord = a.popup.onWord((word: string) => void runQuery(word, "auto"));
     const offPin = a.popup.onPinned?.((p: boolean) => setPinned(p));
     // Listeners are attached; now ask for any word that arrived before we mounted
     a.popup.ready?.().then((word: string | null) => {
-      if (word) void runQuery(word, "en");
+      if (word) void runQuery(word, "auto");
     });
     return () => {
       offWord?.();

@@ -199,7 +199,7 @@ app.on("before-quit", () => {
 
 /* ---- IPC: dictionary lookup ---- */
 /** Bump to make every cached dictionary entry refetch once after a provider change. */
-const DICT_CACHE_VERSION = 2;
+const DICT_CACHE_VERSION = 3;
 ipcMain.handle(
   "dictionary:lookup",
   async (_event, word: string, lang: string, force = false): Promise<LookupResult> => {

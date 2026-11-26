@@ -85,7 +85,14 @@ export function ResultPane({
       </div>
 
       {hasTranslations && (
-        <Section title="Translations" subtitle="Urdu · Arabic" defaultOpen={false}>
+        <Section
+          title="Translations"
+          subtitle={Object.keys(entry.translations)
+            .filter((c) => entry.translations[c]?.length)
+            .map((c) => ({ en: "English", ur: "Urdu", ar: "Arabic", fa: "Persian" } as Record<string, string>)[c] ?? c.toUpperCase())
+            .join(" · ")}
+          defaultOpen={entry.language !== "en"}
+        >
           <TranslationList translations={entry.translations} />
         </Section>
       )}

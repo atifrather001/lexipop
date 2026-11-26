@@ -6,6 +6,7 @@ interface TranslationListProps {
 }
 
 const LANG_META: Record<string, { name: string; rtl: boolean; fontClass: string }> = {
+  en: { name: "English", rtl: false, fontClass: "" },
   ur: { name: "Urdu", rtl: true, fontClass: "font-urdu" },
   ar: { name: "Arabic", rtl: true, fontClass: "font-arabic" },
   fa: { name: "Persian", rtl: true, fontClass: "font-arabic" },

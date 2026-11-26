@@ -1,5 +1,6 @@
 /* LexiPop - Wiktionary provider: etymology + human-recorded pronunciations */
 import type { Definition, DictionaryProvider, Phonetic, WordEntry } from "../shared/types";
+import { lookupCandidates } from "./arabicScript.js";
 
 const API = "https://en.wiktionary.org/w/api.php";
 // Wikimedia requires a descriptive User-Agent; anonymous UAs get 403.
@@ -224,8 +225,8 @@ export function definitionsFrom(section: string): Definition[] {
 }
 
 /** For inflected forms ("simple past of launch"), the lemma the page points to. */
-function lemmaFrom(section: string): string | undefined {
-  const m = /class="form-of-definition-link"[\s\S]*?<a[^>]*href="\/wiki\/([^"#]+)#English"/i.exec(section);
+function lemmaFrom(section: string, heading = "English"): string | undefined {
+  const m = new RegExp(`class="form-of-definition-link"[\\s\\S]*?<a[^>]*href="\\/wiki\\/([^"#]+)#${heading}"`, "i").exec(section);
   if (!m?.[1]) return undefined;
   try { return decodeURIComponent(m[1].replace(/_/g, " ")); } catch { return undefined; }
 }
@@ -259,6 +260,33 @@ export class WiktionaryProvider implements DictionaryProvider {
     return languageSection(html, heading);
   }
 
+  /** Which of these page titles exist (one request), keeping the caller's order. */
+  private async existingTitles(titles: string[], signal: AbortSignal): Promise<string[]> {
+    if (!titles.length) return [];
+    const params = new URLSearchParams({
+      action: "query",
+      titles: titles.join("|"),
+      redirects: "1",
+      format: "json",
+      formatversion: "2",
+    });
+    const data = await fetchJson(`${API}?${params}`, signal);
+    const norm = new Map<string, string>();
+    for (const n of data?.query?.normalized ?? []) norm.set(n.from, n.to);
+    const redir = new Map<string, string>();
+    for (const r of data?.query?.redirects ?? []) redir.set(r.from, r.to);
+    const exists = new Set<string>(
+      (data?.query?.pages ?? []).filter((pg: any) => !pg.missing && !pg.invalid).map((pg: any) => pg.title as string)
+    );
+    const out: string[] = [];
+    for (const t of titles) {
+      const n = norm.get(t) ?? t;
+      const final = redir.get(n) ?? n;
+      if (exists.has(final) && !out.includes(t)) out.push(t);
+    }
+    return out;
+  }
+
   async lookup(word: string, lang: string): Promise<Partial<WordEntry>> {
     const heading = LANG_HEADING[lang];
     if (!heading) return {};
@@ -266,7 +294,17 @@ export class WiktionaryProvider implements DictionaryProvider {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
     try {
-      let section = await this.fetchSection(word, heading, controller.signal);
+      let section: string | null = null;
+      if (lang === "en") {
+        section = await this.fetchSection(word, heading, controller.signal);
+      } else {
+        // Arabic-script headwords are unvocalised base forms: try "تبرعًا" -> "تبرعا" -> "تبرع" ...
+        const titles = await this.existingTitles(lookupCandidates(word, lang), controller.signal).catch(() => [] as string[]);
+        for (const t of titles) {
+          section = await this.fetchSection(t, heading, controller.signal).catch(() => null);
+          if (section) break;
+        }
+      }
       // Wiktionary titles are case-sensitive: "ramallah" -> "Ramallah", "new york" -> "New York"
       if (!section && /\p{Ll}/u.test(word)) {
         const titled = word.toLowerCase().replace(/(^|[\s-])(\p{L})/gu, (_m, sep: string, c: string) => sep + c.toUpperCase());
@@ -280,7 +318,7 @@ export class WiktionaryProvider implements DictionaryProvider {
       let translations = lang === "en" ? translationsFrom(section) : {};
 
       // Inflected form (e.g. "launched" -> "launch"): borrow what the lemma page has
-      const lemma = lemmaFrom(section);
+      const lemma = lemmaFrom(section, heading);
       if (lemma && lemma.toLowerCase() !== word.toLowerCase() && (!etymology || !phonetics.length || !Object.keys(translations).length)) {
         const base = await this.fetchSection(lemma, heading, controller.signal).catch(() => null);
         if (base) {

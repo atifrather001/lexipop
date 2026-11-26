@@ -7,7 +7,7 @@ import {
 import { FreeDictionaryProvider } from "./freedictionary.js";
 import { DatamuseProvider } from "./datamuse.js";
 import { WiktionaryProvider } from "./wiktionary.js";
-import { myMemoryTranslate } from "./mymemory.js";
+import { myMemoryTranslate, myMemoryTranslatePair } from "./mymemory.js";
 
 /** Languages we always try to provide translations for when looking up English. */
 const TRANSLATION_LANGS = ["ur", "ar"] as const;
@@ -139,6 +139,20 @@ export async function lookupWord(
         }
       });
     }
+  }
+
+  // Arabic / Urdu / Persian: Wiktionary often has no page for the word (or only for its base form),
+  // so always give a meaning in English plus the sister language via MyMemory.
+  if (lang !== "en") {
+    const targets = ["en", ...TRANSLATION_LANGS.filter((l) => l !== lang)].filter((l) => !(trans[l]?.length));
+    const results3 = await Promise.all(targets.map((l) => myMemoryTranslatePair(word, lang, l)));
+    results3.forEach((t, i) => {
+      const l = targets[i]!;
+      if (t) {
+        trans[l] = [`${t} \u2014 MyMemory`];
+        if (!merged.sources!.includes("MyMemory")) merged.sources!.push("MyMemory");
+      }
+    });
   }
 
   const entry: WordEntry = {
