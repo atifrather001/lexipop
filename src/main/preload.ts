@@ -72,6 +72,12 @@ const api = {
     /** Opens Wikipedia / Wikidata / OpenStreetMap links in the default browser. */
     openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke("app:openExternal", url),
   },
+  tts: {
+    /** Languages that have a bundled offline voice. */
+    voices: (): Promise<string[]> => ipcRenderer.invoke("tts:voices"),
+    /** WAV audio of the text in the bundled voice, or null. */
+    speak: (text: string, lang: string): Promise<Uint8Array | null> => ipcRenderer.invoke("tts:speak", text, lang),
+  },
   popup: {
     /** Fired when the main process wants the popup to look up a word. */
     onWord: (cb: (word: string) => void): (() => void) => {

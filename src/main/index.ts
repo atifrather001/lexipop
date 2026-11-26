@@ -9,6 +9,7 @@ import { PopupWindow } from "./popup.js";
 import { createTray } from "./tray.js";
 import { registerHotkeys } from "./hotkeys.js";
 import { lookupWord } from "../providers/index.js";
+import { offlineVoices, synthesize } from "./tts.js";
 import { lookupEncyclopedia } from "../providers/wikipedia.js";
 import { getRates, type RateTable } from "../providers/rates.js";
 import { translateText } from "../providers/textTranslate.js";
@@ -412,6 +413,17 @@ ipcMain.handle(
 );
 
 /* ---- IPC: app meta ---- */
+/* ---- IPC: offline voices (Urdu, and Arabic where Windows has no Arabic voice) ---- */
+ipcMain.handle("tts:voices", async (): Promise<string[]> => offlineVoices());
+ipcMain.handle("tts:speak", async (_event, text: string, lang: string): Promise<Uint8Array | null> => {
+  try {
+    return synthesize(String(text ?? ""), String(lang ?? ""));
+  } catch (err) {
+    console.error("[LexiPop] offline TTS failed:", err);
+    return null;
+  }
+});
+
 ipcMain.handle("app:getVersion", async (): Promise<string> => {
   return app.getVersion();
 });

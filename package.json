@@ -1,7 +1,7 @@
 {
   "name": "lexipop",
   "productName": "LexiPop",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "LexiPop by NexaSecure AI",
   "author": "NexaSecure AI",
   "license": "MIT",
@@ -13,11 +13,13 @@
     "dist": "npm run build && electron-builder --win",
     "preview": "vite preview",
     "test": "vitest run",
-    "electron": "electron ."
+    "electron": "electron .",
+    "voices": "node scripts/get-voices.mjs"
   },
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "sherpa-onnx-node": "1.13.8",
     "sql.js": "^1.10.0"
   },
   "devDependencies": {
@@ -76,8 +78,15 @@
       {
         "from": "build/icon.png",
         "to": "icon.png"
+      },
+      {
+        "from": "voices",
+        "to": "voices"
       }
     ],
-    "npmRebuild": false
+    "npmRebuild": false,
+    "asarUnpack": [
+      "node_modules/sherpa-onnx-*/**"
+    ]
   }
 }
